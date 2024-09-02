@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Food Recommendation Quiz</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lobster&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 100%;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        body.light-mode {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        body.dark-mode {
+            background-color: #333;
+            color: #f0f0f0;
+        }
+        .title-container {
+            width: 100%;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h1 {
+            font-family: 'Lobster', cursive;
+            font-size: 3em;
+            color: #FF6B6B;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .light-mode .container {
+            background-color: white;
+        }
+        .dark-mode .container {
+            background-color: #444;
+        }
+        #quiz, #result, #map-container {
+            display: none;
+        }
+        button {
+            margin: 10px 5px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #map {
+            height: 400px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        #restaurant-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+            text-align: left;
+        }
+        #restaurant-list p {
+            cursor: pointer;
+            padding: 5px;
+            transition: background-color 0.3s;
+        }
+        #restaurant-list p:hover {
+            background-color: #f0f0f0;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            .container {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="title-container">
+        <h1>What should you eat tonight?</h1>
+    </div>
+    <div class="container">
+        <div id="start">
+            <p>Take this quick quiz to get a food recommendation!</p>
+            <button onclick="startQuiz()">Start Quiz</button>
+        </div>
+        <div id="quiz">
+            <h2 id="question"></h2>
+            <div id="answers"></div>
+        </div>
+        <div id="result">
+            <h2>Your food recommendation:</h2>
+            <p id="recommendation"></p>
+            <button onclick="showMap()">Show Nearby Locations</button>
+            <button onclick="restartQuiz()">Start Over</button>
+        </div>
+        <div id="map-container">
+            <div id="map"></div>
+            <div id="restaurant-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const questions = [
+            {
+                question: "How hungry are you?",
+                answers: ["Very hungry", "Moderately hungry", "Just a little peckish"]
+            },
+            {
+                question: "What type of cuisine do you prefer?",
+                answers: ["Italian", "Asian", "American", "Mexican"]
+            },
+            {
+                question: "Do you prefer hot or cold food?",
+                answers: ["Hot", "Cold", "No preference"]
+            },
+            {
+                question: "Are you in the mood for something healthy or indulgent?",
+                answers: ["Healthy", "Indulgent", "Balanced"]
+            },
+            {
+                question: "Would you prefer a handheld food item or something that requires utensils?",
+                answers: ["Handheld", "Utensils", "No preference"]
+            }
+        ];
+
+        let currentQuestion = 0;
+        let userAnswers = [];
+        let map;
+        let recommendedFood;
+        let userLocation;
+
+        function setTheme() {
+            const now = new Date();
+            const hour = now.getHours();
+            const body = document.body;
+
+            if (hour >= 17 || hour < 7) {
+                body.classList.remove('light-mode');
+                body.classList.add('dark-mode');
+            } else {
+                body.classList.remove('dark-mode');
+                body.classList.add('light-mode');
+            }
+        }
+
+        function startQuiz() {
+            document.getElementById('start').style.display = 'none';
+            document.getElementById('quiz').style.display = 'block';
+            showQuestion();
+        }
+
+        function showQuestion() {
+            const questionEl = document.getElementById('question');
+            const answersEl = document.getElementById('answers');
+            
+            questionEl.textContent = questions[currentQuestion].question;
+            answersEl.innerHTML = '';
+            
+            questions[currentQuestion].answers.forEach((answer, index) => {
+                const button = document.createElement('button');
+                button.textContent = answer;
+                button.onclick = () => selectAnswer(index);
+                answersEl.appendChild(button);
+            });
+        }
+
+        function selectAnswer(index) {
+            userAnswers[currentQuestion] = index;
+            currentQuestion++;
+            if (currentQuestion < questions.length) {
+                showQuestion();
+            } else {
+                showResult();
+            }
+        }
+
+        function showResult() {
+            document.getElementById('quiz').style.display = 'none';
+            document.getElementById('result').style.display = 'block';
+            
+            recommendedFood = getFoodRecommendation();
+            document.getElementById('recommendation').textContent = recommendedFood;
+        }
+
+        function getFoodRecommendation() {
+            const hungerLevel = userAnswers[0];
+            const cuisine = userAnswers[1];
+            const temperature = userAnswers[2];
+            const healthiness = userAnswers[3];
+            const eatingStyle = userAnswers[4];
+
+            let recommendation = "";
+
+            if (hungerLevel === 0) { // Very hungry
+                if (cuisine === 0) recommendation = eatingStyle === 0 ? "A large calzone" : "A hearty pasta dish";
+                else if (cuisine === 1) recommendation = eatingStyle === 0 ? "A big sushi burrito" : "A large bowl of ramen";
+                else if (cuisine === 2) recommendation = eatingStyle === 0 ? "A big burger" : "A steak with sides";
+                else recommendation = eatingStyle === 0 ? "A burrito" : "A large plate of fajitas";
+            } else if (hungerLevel === 1) { // Moderately hungry
+                if (cuisine === 0) recommendation = eatingStyle === 0 ? "A slice of pizza" : "A plate of lasagna";
+                else if (cuisine === 1) recommendation = eatingStyle === 0 ? "A few sushi rolls" : "A stir-fry dish";
+                else if (cuisine === 2) recommendation = eatingStyle === 0 ? "A chicken sandwich" : "A Caesar salad";
+                else recommendation = eatingStyle === 0 ? "A couple of tacos" : "A quesadilla";
+            } else { // Just a little peckish
+                if (cuisine === 0) recommendation = eatingStyle === 0 ? "A small panini" : "Bruschetta";
+                else if (cuisine === 1) recommendation = eatingStyle === 0 ? "A spring roll" : "Edamame";
+                else if (cuisine === 2) recommendation = eatingStyle === 0 ? "A slider" : "A small salad";
+                else recommendation = eatingStyle === 0 ? "Chips and salsa" : "A small bowl of tortilla soup";
+            }
+
+            if (temperature === 0) recommendation = "Hot " + recommendation.toLowerCase();
+            else if (temperature === 1) recommendation = "Cold " + recommendation.toLowerCase();
+
+            if (healthiness === 0) recommendation += " (prepared in a healthy way)";
+            else if (healthiness === 1) recommendation += " (with extra toppings for indulgence)";
+
+            return recommendation;
+        }
+
+        function showMap() {
+            if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
+                alert('Google Maps API is not loaded. Please check your API key and try again.');
+                return;
+            }
+
+            fetch('https://api.ipify.org?format=json')
+                .then(response => response.json())
+                .then(data => {
+                    const ipAddress = data.ip;
+                    return fetch(`https://ipapi.co/${ipAddress}/json/`);
+                })
+                .then(response => response.json())
+                .then(data => {
+                    const lat = data.latitude;
+                    const lng = data.longitude;
+                    userLocation = new google.maps.LatLng(lat, lng);
+                    initMap(lat, lng);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Unable to get location. Please try again later.');
+                });
+        }
+
+        function initMap(lat, lng) {
+            document.getElementById('map-container').style.display = 'block';
+            const center = new google.maps.LatLng(lat, lng);
+
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: center,
+                zoom: 15
+            });
+
+            const request = {
+                location: center,
+                radius: '20000',
+                query: recommendedFood
+            };
+
+            const service = new google.maps.places.PlacesService(map);
+            service.textSearch(request, callback);
+        }
+
+        function callback(results, status) {
+            if (status === google.maps.places.PlacesServiceStatus.OK) {
+                const restaurantList = document.getElementById('restaurant-list');
+                restaurantList.innerHTML = '<h3>Nearby Restaurants:</h3>';
+                for (let i = 0; i < results.length; i++) {
+                    createMarker(results[i]);
+                    const restaurantItem = document.createElement('p');
+                    restaurantItem.textContent = `${i + 1}. ${results[i].name}`;
+                    restaurantItem.onclick = () => centerMap(results[i].geometry.location);
+                    restaurantList.appendChild(restaurantItem);
+                }
+            }
+        }
+
+        function createMarker(place) {
+            const marker = new google.maps.Marker({
+                map: map,
+                position: place.geometry.location
+            });
+
+            google.maps.event.addListener(marker, 'click', function() {
+                const infowindow = new google.maps.InfoWindow({
+                    content: place.name
+                });
+                infowindow.open(map, this);
+            });
+        }
+
+        function centerMap(location) {
+            map.setCenter(location);
+            map.setZoom(16);
+        }
+
+        function restartQuiz() {
+            currentQuestion = 0;
+            userAnswers = [];
+            document.getElementById('result').style.display = 'none';
+            document.getElementById('map-container').style.display = 'none';
+            startQuiz();
+        }
+
+        // Set initial theme and update every minute
+        setTheme();
+        setInterval(setTheme, 60000);
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCdmVFNmQvLZvuM3WaZ2ljqTznDXF7i2Uo&libraries=places"></script>
+</body>
+</html>
